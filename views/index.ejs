@@ -174,10 +174,7 @@
       // Add API configuration
       const API_CONFIG = {
         endpoint: '<%= apiEndpoint %>',  // Replace with your actual API endpoint
-        apiKey: '<%= apiKey %>'        // Replace with your actual API key
       };
-
-      console.log('API Configuration:', API_CONFIG);
 
       function setupImageUpload() {
         const imageUpload = document.getElementById('imageUpload');
@@ -310,13 +307,11 @@
           console.log('Sending request with body:', JSON.stringify(requestBody, null, 2));
 
           const response = await fetch(API_CONFIG.endpoint, {
-            method: 'POST',
+            method: 'GET',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${API_CONFIG.apiKey}`,
               'Accept': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
+            }
           });
 
           if (!response.ok) {
@@ -326,8 +321,8 @@
           }
 
           const data = await response.json();
-          console.log('API Response:', data);
-          return data.choices[0].message.content;
+          console.log('API Response:', data["description"]);
+          return data["description"];
         } catch (error) {
           console.error('API Error:', error);
           if (!imageUrl) {
