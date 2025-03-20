@@ -16,6 +16,7 @@
       max-width: 800px;
       margin: 0 auto;
       padding: 20px;
+      overflow: hidden; /* Prevent body scroll */
     }
     .chat-container {
       flex-grow: 1;
@@ -25,6 +26,8 @@
       display: flex;
       flex-direction: column;
       background: #f5f5f5;
+      overflow: hidden; /* Prevent container scroll */
+      position: relative; /* For absolute positioning of controls */
     }
     .chat-messages {
       flex-grow: 1;
@@ -33,6 +36,8 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      scroll-behavior: smooth; /* Smooth scrolling */
+      padding-bottom: 80px; /* Space for controls */
     }
     .message {
       max-width: 70%;
@@ -57,6 +62,11 @@
       background: white;
       border-top: 1px solid #ccc;
       align-items: center;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
     }
     .microphone {
       background-color: #007bff;
@@ -144,7 +154,7 @@
     <div class="controls">
       <button class="microphone" id="micButton">🎤</button>
       <label class="image-upload-label" for="imageUpload">📷 Upload Image</label>
-      <input type="file" id="imageUpload" class="image-upload" accept="image/*">
+      <input type="file" id="imageUpload" class="image-upload" name="image" accept="image/*">
     </div>
   </div>
 
@@ -161,6 +171,7 @@
       const typingIndicator = document.getElementById('typingIndicator');
       let isListening = false;
       let currentImageData = null;
+      let imageFileName = null;
 
       // Simple responses for the chatbot
       const botResponses = {
@@ -197,6 +208,8 @@
           console.log('Files:', e.target.files); // Debug log
 
           const file = e.target.files[0];
+          console.log('File:', file); // Debug log
+
           if (file) {
             console.log('File selected:', file.name, file.type, file.size); // Debug log
             
@@ -215,22 +228,42 @@
             try {
               console.log('Converting image to base64...'); // Debug log
               const imageUrl = URL.createObjectURL(file);
+              imageFileName = file.name;
+
               currentImageData = imageUrl;
               
               // Automatically ask for image description
-              const userMessage = "Describe this image in detail";
+              userMessage = ""
               addMessage(userMessage, true, imageUrl);
               showTypingIndicator();
+
+              //Upload image to spaces
+              console.log('Uploading to spaces...');
+
+              // Create FormData and append the file
+              const formData = new FormData();
+              formData.append('image', file); // 'image' should match the field name expected by multer
               
+              console.log('Uploading file:', file.name); // Debug log
+
               try {
-                const botResponse = await getBotResponse(userMessage, imageUrl);
-                hideTypingIndicator();
-                addMessage(botResponse, false);
+                const response = await fetch('/upload', {
+                  method: 'POST',
+                  body: formData // Send FormData directly, don't stringify it
+                });
+
+                if (!response.ok) {
+                  throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Response:', data); // Debug log
               } catch (error) {
-                console.error('Error getting bot response:', error);
-                hideTypingIndicator();
-                addMessage("I'm sorry, I'm having trouble analyzing the image right now. Please try again.", false);
+                console.error('Error uploading image:', error);
+                alert('Failed to upload image. Please try again.');
               }
+              hideTypingIndicator();
+
             } catch (error) {
               console.error('Error processing image:', error);
               alert('Error processing image. Please try again.');
@@ -273,40 +306,13 @@
         });
       }
 
-      async function getBotResponse(text, imageUrl = null) {
+      async function getBotResponse(text, imageFileName = null) {
         try {
-          let requestBody = {
-            max_tokens: 600,
-            stream: false
-          };
-
-          console.log('Image URL:', imageUrl);
-          if (imageUrl) {
-            requestBody.messages = [{
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"
-                  }
-                },
-                {
-                  type: "text",
-                  text: text
-                }
-              ]
-            }];
-          } else {
-            requestBody.messages = [{
-              role: "user",
-              content: text
-            }];
-          }
-
-          console.log('Sending request with body:', JSON.stringify(requestBody, null, 2));
-
-          const response = await fetch(API_CONFIG.endpoint, {
+          console.log('Image File Name:', imageFileName);
+          console.log('Text:', text);
+          apiUrl = API_CONFIG.endpoint + imageFileName + "/" + text;
+          console.log('API URL:', apiUrl);
+          const response = await fetch(apiUrl, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -376,11 +382,11 @@
         console.log('Got phrases:', phrases);
         if (phrases.length > 0) {
           const userMessage = phrases[0];
-          addMessage(userMessage, true, currentImageData);
+          addMessage(userMessage, true, null);
           
           showTypingIndicator();
           try {
-            const botResponse = await getBotResponse(userMessage, currentImageData);
+            const botResponse = await getBotResponse(userMessage, imageFileName);
             hideTypingIndicator();
             addMessage(botResponse, false);
           } catch (error) {

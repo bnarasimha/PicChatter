@@ -2,6 +2,9 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+const multer = require('multer');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const AWS = require('aws-sdk');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +39,58 @@ app.get('/', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
+});
+
+// Configure multer for file uploads
+const upload = multer({ dest: 'PicChatter/' });
+
+// Endpoint to handle image upload
+app.post('/upload', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            console.error('No file uploaded');
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        console.log('Received file:', req.file);
+
+        // Configure AWS SDK for DigitalOcean Spaces
+        const spacesEndpoint = new AWS.Endpoint(process.env.SPACES_ENDPOINT);
+        const s3 = new AWS.S3({
+            endpoint: spacesEndpoint,
+            accessKeyId: process.env.SPACES_KEY,
+            secretAccessKey: process.env.SPACES_SECRET,
+        });
+
+        // Read the file content
+        const fileContent = fs.readFileSync(req.file.path);
+
+        // Prepare the upload parameters
+        const params = {
+            Bucket: process.env.SPACES_BUCKET,
+            Key: req.file.originalname,
+            Body: fileContent,
+            ACL: 'public-read',
+            ContentType: req.file.mimetype
+        };
+
+        // Upload to DigitalOcean Spaces
+        const data = await s3.upload(params).promise();
+        
+        // Clean up the temporary file
+        fs.unlinkSync(req.file.path);
+
+        console.log('File uploaded successfully:', data.Location);
+        res.json({ imageUrl: data.Location });
+
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        // Clean up the temporary file in case of error
+        if (req.file && req.file.path) {
+            fs.unlinkSync(req.file.path);
+        }
+        res.status(500).json({ error: 'Error uploading image' });
+    }
 });
 
 // Start the server
