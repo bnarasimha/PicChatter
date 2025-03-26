@@ -5,6 +5,7 @@ require('dotenv').config();
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const AWS = require('aws-sdk');
+var gtts = require('node-gtts')('en');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,11 @@ app.get('/', (req, res) => {
         apiKey: process.env.API_KEY || 'default-api-key',
     });
 });
+
+app.get('/speech/:text', function(req, res) {
+    res.set({'Content-Type': 'audio/mpeg'});
+    gtts.stream(req.params.text).pipe(res);
+})
 
 // Health check endpoint
 app.get('/health', (req, res) => {

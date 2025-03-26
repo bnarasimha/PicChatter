@@ -143,7 +143,7 @@
   </style>
 </head>
 <body>
-  <h1>Voice Chatbot</h1>
+  <h1>PicChatter</h1>
   <div class="status" id="status">Click the microphone to start speaking</div>
   
   <div class="chat-container">
@@ -235,7 +235,7 @@
               // Automatically ask for image description
               userMessage = ""
               addMessage(userMessage, true, imageUrl);
-              showTypingIndicator();
+              //showTypingIndicator();
 
               //Upload image to spaces
               console.log('Uploading to spaces...');
@@ -262,7 +262,7 @@
                 console.error('Error uploading image:', error);
                 alert('Failed to upload image. Please try again.');
               }
-              hideTypingIndicator();
+              //hideTypingIndicator();
 
             } catch (error) {
               console.error('Error processing image:', error);
@@ -312,26 +312,8 @@
           console.log('Text:', text);
           apiUrl = API_CONFIG.endpoint + imageFileName + "/" + text;
           console.log('API URL:', apiUrl);
-          const response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          });
-
-          if (!response.ok) {
-            const errorData = await response.text();
-            console.error('API Error Response:', errorData);
-            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          console.log('API Response:', data["description"]);
-          return data["description"];
-        } catch (error) {
-          console.error('API Error:', error);
-          if (!imageUrl) {
+          
+          if (!imageFileName) {
             // Fallback to default responses only for text messages
             text = text.toLowerCase();
             for (const [key, responses] of Object.entries(botResponses)) {
@@ -341,6 +323,27 @@
             }
             return botResponses.default[Math.floor(Math.random() * botResponses.default.length)];
           }
+          else {
+            const response = await fetch(apiUrl, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              }
+            });
+
+            const data = await response.json();
+            console.log('API Response:', data["description"]);
+            
+            if (!response.ok) {
+              const errorData = await response.text();
+              console.error('API Error Response:', errorData);
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            }
+            return data["description"];
+          }
+        } catch (error) {
+          console.error('API Error:', error);
           throw error;
         }
       }
@@ -362,14 +365,41 @@
         
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Play text-to-speech for bot messages
+        if (!isUser) {
+          playTextToSpeech(text);
+        }
+      }
+
+      // Add text-to-speech function
+      function playTextToSpeech(text) {
+        const audio = new Audio(`/speech/${encodeURIComponent(text)}`);
+        
+        audio.play(
+          micButton.click()
+        ).catch(error => {
+          console.error('Error playing audio:', error);
+          // Reset mic button if audio fails to play
+          if (isListening) {
+            micButton.click();
+          }
+        });
+
+        // Reset mic button when audio finishes playing
+        audio.addEventListener('ended', () => {
+            micButton.click();
+        });
       }
 
       function showTypingIndicator() {
+        console.log('Showing typing indicator');
         typingIndicator.style.display = 'block';
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
 
       function hideTypingIndicator() {
+        console.log('Hiding typing indicator');
         typingIndicator.style.display = 'none';
       }
 
@@ -387,13 +417,12 @@
           showTypingIndicator();
           try {
             const botResponse = await getBotResponse(userMessage, imageFileName);
-            hideTypingIndicator();
             addMessage(botResponse, false);
           } catch (error) {
             console.error('Error getting bot response:', error);
-            hideTypingIndicator();
             addMessage("I'm sorry, I'm having trouble responding right now. Please try again.", false);
           }
+          hideTypingIndicator();
         }
       });
 
@@ -429,12 +458,6 @@
       annyang.addCallback('soundstart', function() {
         console.log('Detected sound');
         status.textContent = 'Hearing speech...';
-      });
-
-      // Handle resultNoMatch event
-      annyang.addCallback('resultNoMatch', function() {
-        console.log('No match found for speech');
-        status.textContent = 'Could not understand speech. Please try again.';
       });
 
       // Start/Stop recognition on button click
