@@ -373,12 +373,24 @@
       }
 
       // Add text-to-speech function
+      let currentAudio = null; // Track current audio element
+
       function playTextToSpeech(text) {
-        const audio = new Audio(`/speech/${encodeURIComponent(text)}`);
+        // Stop any currently playing audio
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+        }
+
+        currentAudio = new Audio(`/speech/${encodeURIComponent(text)}`);
         
-        audio.play(
-          micButton.click()
-        ).catch(error => {
+        // Start listening when audio starts
+        if (!isListening) {
+          micButton.click();
+        }
+
+        // Play the audio
+        currentAudio.play().catch(error => {
           console.error('Error playing audio:', error);
           // Reset mic button if audio fails to play
           if (isListening) {
@@ -387,10 +399,38 @@
         });
 
         // Reset mic button when audio finishes playing
-        audio.addEventListener('ended', () => {
+        currentAudio.addEventListener('ended', () => {
+          if (isListening) {
             micButton.click();
+          }
+          currentAudio = null; // Clear the reference when done
+        });
+
+        // Add pause/resume functionality
+        currentAudio.addEventListener('pause', () => {
+          if (isListening) {
+            micButton.click();
+          }
+        });
+
+        currentAudio.addEventListener('play', () => {
+          if (!isListening) {
+            micButton.click();
+          }
         });
       }
+
+      // Add spacebar event listener for pause/resume
+      document.addEventListener('keydown', (event) => {
+        if (event.code === 'Space' && currentAudio) {
+          event.preventDefault(); // Prevent page scroll
+          if (currentAudio.paused) {
+            currentAudio.play();
+          } else {
+            currentAudio.pause();
+          }
+        }
+      });
 
       function showTypingIndicator() {
         console.log('Showing typing indicator');
